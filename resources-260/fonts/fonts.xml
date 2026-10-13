@@ -1,0 +1,10 @@
+<fonts>
+<font id="Time" filename="Time.fnt"/>
+<font id="Data" filename="Data.fnt"/>
+<font id="Small" filename="Small.fnt"/>
+<font id="Status" filename="Status.fnt"/>
+<font id="Aod" filename="Aod.fnt"/>
+<font id="CjkData" filename="CjkData.fnt" antialias="true"/>
+<font id="CjkSmall" filename="CjkSmall.fnt" antialias="true"/>
+<font id="CompactTime" filename="CompactTime.fnt"/>
+</fonts>
