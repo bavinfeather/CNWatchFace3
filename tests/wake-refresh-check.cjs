@@ -79,7 +79,7 @@ function harness(amoled = true, now = start) {
         Application: { Storage: { setValue: () => calls.push('storage') } },
         Solar: { nextEvent: () => null },
         drawAod: () => calls.push('aod'), drawSkyRegion: () => calls.push('sky'),
-        progressValue: () => 0, drawProgressValue: () => calls.push('progress'),
+        progressValue: () => 0, mipProgressTrackColor: () => 0x555555, drawProgressValue: () => calls.push('progress'),
         dateLine: () => '10/07', timeString: () => '12:00', fitTag: (dc, t) => t,
         drawLandscape: () => calls.push('landscape'), fieldStart: () => 132,
         fieldLabel: () => 'FIELD', fieldText: () => 'VALUE',
@@ -145,12 +145,12 @@ for (const mode of ['cold', 'settings', 'midnight', 'clock-back', 'mip']) {
     h.calls.length = 0; h.frame(); fullFrame(h); assert(h.calls.includes('stats'), mode);
     assert(h.calls.indexOf('stats') < h.calls.indexOf('clear'));
 }
-// Repeated low-power frames preserve the pending bright frame and existing AOD battery path.
+// Repeated low-power frames preserve the pending bright frame. The shared AOD module owns data reads.
 {
     const h = harness(); h.wake(); h.state.displayMode = 1;
     for (let i = 0; i < 3; i++) { h.calls.length = 0; h.frame();
-        assert.deepEqual(h.calls, ['stats', 'aod']); assert.equal(h.state.wakeFramePending, true); }
-    assert.equal(h.state.battery, 81);
+        assert.deepEqual(h.calls, ['aod']); assert.equal(h.state.wakeFramePending, true); }
+    assert.equal(h.state.battery, 80);
     h.state.displayMode = 0; h.calls.length = 0; h.frame(); fullFrame(h);
     assert(!h.calls.includes('stats')); assert.equal(h.state.wakeFramePending, false);
 }

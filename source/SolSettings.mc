@@ -13,7 +13,7 @@ class SolSettingsMenu extends WatchUi.Menu2 {
             var item=new WatchUi.MenuItem(title(rows[i]),null,i,null);
             items.add(item);addItem(item);
         }
-        refresh();
+        refresh(null);
     }
     function isSection(row) { return row[0].length()>=7 && row[0].substring(0,7).equals("Section"); }
     function language() {
@@ -24,9 +24,10 @@ class SolSettingsMenu extends WatchUi.Menu2 {
     function option(choices, index) { return SolSettingsData.option(choices,index); }
     function hiddenText() { return language()==1?"（隐藏）":"(Hidden)"; }
     function currentText() { return language()==1?"当前":"Current"; }
-    function refresh() {
+    function refresh(key) {
         for(var i=0;i<rows.size();i++) {
             var row=rows[i];
+            if(key!=null && !row[0].equals(key)) { continue; }
             if(isSection(row)) { items[i].setSubLabel(null); continue; }
             var value=Application.Properties.getValue(row[0]);
             var label=value==null?"":value.toString();
@@ -34,7 +35,6 @@ class SolSettingsMenu extends WatchUi.Menu2 {
             items[i].setSubLabel(label.length()==0?hiddenText():label);
         }
     }
-    function onShow() { refresh(); }
 }
 
 class SolSettingsDelegate extends WatchUi.Menu2InputDelegate {
@@ -63,7 +63,7 @@ class SolOptionDelegate extends WatchUi.Menu2InputDelegate {
     function initialize(m,r,c) { Menu2InputDelegate.initialize();menu=m;row=r;choices=c; }
     function onSelect(item) {
         Application.Properties.setValue(row[0],choices[(item.getId() as Number)*2]);
-        Application.getApp().onSettingsChanged();menu.refresh();
+        Application.getApp().onSettingsChanged();menu.refresh(row[0]);
         WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
     }
     function onBack() { WatchUi.popView(WatchUi.SLIDE_IMMEDIATE); }
@@ -75,7 +75,7 @@ class SolTextDelegate extends WatchUi.TextPickerDelegate {
     function onTextEntered(text,changed) {
         if(changed) {
             Application.Properties.setValue(key,text);
-            Application.getApp().onSettingsChanged();menu.refresh();
+            Application.getApp().onSettingsChanged();menu.refresh(key);
         }
         return true;
     }

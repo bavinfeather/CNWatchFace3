@@ -636,8 +636,9 @@ class SolView extends WatchUi.WatchFace {
     function drawFieldValue(dc,y,s,id,bounds) {
         // Keep all values in the original language-specific font, including units.
         var f=(cn() || !latin(s))?(dataCjkFont!=null?dataCjkFont:fonts[4]):(dataLatinFont!=null?dataLatinFont:fonts[1]);
-        var valueLeft=p(186);
-        var valueRight=p(272);
+        var fieldOffset=bounds[0]-p(24);
+        var valueLeft=p(186)+fieldOffset-3;
+        var valueRight=p(272)+fieldOffset;
         var content=fitTag(dc,s,f,valueRight-valueLeft);
         var center=p(y+10);
         dc.setClip(bounds[0],0,valueRight-bounds[0],width);
@@ -866,6 +867,25 @@ class SolView extends WatchUi.WatchFace {
         if(v==null) { return "--"; }
         return options["ProgressMetric"]==0?v.format("%.0f")+"%":v.format("%.0f");
     }
+    function mipProgressTrackColor() {
+        // Choose a MIP gray distinct from both the sky and the selected arc.
+        var candidates=[0x000000,0x555555,0xAAAAAA,0xFFFFFF];
+        var best=candidates[0];var bestScore=-1;
+        for(var i=0;i<candidates.size();i++) {
+            var c=candidates[i];var minDistance=200000;
+            var reference=[colors["Background"],colors["ArcColor"]];
+            for(var j=0;j<reference.size();j++) {
+                var r=reference[j];
+                var dr=((c>>16)&255)-((r>>16)&255);
+                var dg=((c>>8)&255)-((r>>8)&255);
+                var db=(c&255)-(r&255);
+                var distance=dr*dr+dg*dg+db*db;
+                if(distance<minDistance) { minDistance=distance; }
+            }
+            if(minDistance>bestScore) { bestScore=minDistance;best=c; }
+        }
+        return best;
+    }
     function progressIcon() {
         if(options["ProgressMetric"]==1) { return progressBodyBatteryIcon; }
         if(options["ProgressMetric"]==2) { return progressStressIcon; }
@@ -895,20 +915,15 @@ class SolView extends WatchUi.WatchFace {
     function drawAod(dc,clock,date) {
         if(sharedAod==null) { sharedAod=new SharedAod(); }
         var ds=date.month.format("%02d")+"/"+date.day.format("%02d");
-        var fields=battery==null?["--"]:[battery.toNumber().format("%d")+"%"];
+        var simple=SharedAodFields.setting("LowPowerStyle",0)==1;
+        var fields=SharedAodFields.collect(simple,[0,5,0],ds,date.day_of_week,battery);
         sharedAod.draw(dc,clock.hour*60+clock.min,timeString(clock),ds,fields);
     }
     function onUpdate(dc) {
         var clock=System.getClockTime();var now=Time.now().value();var date=Gregorian.info(Time.now(),Time.FORMAT_SHORT);
         var low=asleep;
         if (isAmoled() && (System has :getDisplayMode)) { low=low || System.getDisplayMode()==System.DISPLAY_MODE_LOW_POWER; }
-        if(isAmoled() && low) {
-            try {
-                var aodBattery=System.getSystemStats().battery;
-                if(aodBattery!=null) { battery=aodBattery; }
-            } catch(e) {}
-            drawAod(dc,clock,date);return;
-        }
+        if(isAmoled() && low) { drawAod(dc,clock,date);return; }
         var dayKey=date.year*10000+date.month*100+date.day;
         // Only the first bright frame reuses initialized same-day data. Keep
         // drawing the full frame; due reads run on the next regular callback.
@@ -923,11 +938,34 @@ class SolView extends WatchUi.WatchFace {
         dc.setColor(colors["ArcColor"],Graphics.COLOR_TRANSPARENT);
         var activePen=p(3);if(activePen<1) { activePen=1; }
         var inactivePen=p(1);if(inactivePen<1) { inactivePen=1; }
+        if(!isAmoled()) {
+            activePen=p(4);
+            dc.setPenWidth(activePen);
+            dc.setColor(mipProgressTrackColor(),Graphics.COLOR_TRANSPARENT);
+            var trackRadius=p(132)+(p(3)/2).toNumber()-((activePen-1)/2).toNumber();
+            for(var track=0;track<5;track++) {
+                dc.drawArc(width/2,width/2,trackRadius,Graphics.ARC_CLOCKWISE,128-track*16,116-track*16);
+            }
+            dc.setColor(colors["ArcColor"],Graphics.COLOR_TRANSPARENT);
+        }
         for(var i=0;i<5;i++) {
             var penWidth=i<n?activePen:inactivePen;
-            var radius=p(132)+Math.ceil((activePen-penWidth)/2.0).toNumber();
             dc.setPenWidth(penWidth);
-            dc.drawArc(width/2,width/2,radius,Graphics.ARC_CLOCKWISE,128-i*16,116-i*16);
+            if(isAmoled()) {
+                var radius=p(132)+Math.ceil((activePen-penWidth)/2.0).toNumber();
+                dc.drawArc(width/2,width/2,radius,Graphics.ARC_CLOCKWISE,128-i*16,116-i*16);
+            } else {
+                // Fill the final segment proportionally over the full track.
+                var fill=progress==null?0:progress/20.0-i;
+                if(fill<=0) { continue; }
+                if(fill>1) { fill=1; }
+                // Match the track's radius and width so it cannot show as a
+                // second, jagged edge beside the active arc.
+                dc.setPenWidth(activePen);
+                var outerRadius=p(132)+(p(3)/2).toNumber();
+                var radius=outerRadius-((activePen-1)/2).toNumber();
+                dc.drawArc(width/2,width/2,radius,Graphics.ARC_CLOCKWISE,128-i*16,128-i*16-12*fill);
+            }
         }
         drawProgressValue(dc,now);
         // At this height the circular display ends before the rectangular canvas;
@@ -960,17 +998,20 @@ class SolView extends WatchUi.WatchFace {
         // Keep the field block legible when the larger CJK glyphs reach the terrain.
         drawLandscape(dc,now);
         // Fixed columns shared by all four rows.
-        var bounds=[p(24),p(252)];
+        var fieldOffset=isAmoled()?0:-3;
+        var bounds=[p(24)+fieldOffset,p(252)+fieldOffset];
+        var labelLeft=bounds[0]+3;
+        var labelRight=p(140)+fieldOffset;
         for(var row=0;row<4;row++) {
             var id=options["Field"+(row+1)];
             if(id>=1 && id<EN_LABELS.size()) {
                 var fieldY=fieldStart()+row*22;
                 var label=fieldLabel(id,now);
                 var labelFont=latin(label)?(dataLatinFont!=null?dataLatinFont:fonts[1]):(dataCjkFont!=null?dataCjkFont:fonts[4]);
-                if(dc.getTextWidthInPixels(label,labelFont)>p(140)-bounds[0]) { labelFont=latin(label)?(smallLatinFont!=null?smallLatinFont:fonts[2]):(smallCjkFont!=null?smallCjkFont:fonts[5]); }
-                label=fitTag(dc,label,labelFont,p(140)-bounds[0]);
+                if(dc.getTextWidthInPixels(label,labelFont)>labelRight-labelLeft) { labelFont=latin(label)?(smallLatinFont!=null?smallLatinFont:fonts[2]):(smallCjkFont!=null?smallCjkFont:fonts[5]); }
+                label=fitTag(dc,label,labelFont,labelRight-labelLeft);
                 dc.setColor(colors["LabelColor"],Graphics.COLOR_TRANSPARENT);
-                dc.drawText(bounds[0],p(fieldY+10),labelFont,label,Graphics.TEXT_JUSTIFY_LEFT|Graphics.TEXT_JUSTIFY_VCENTER);
+                dc.drawText(labelLeft,p(fieldY+10),labelFont,label,Graphics.TEXT_JUSTIFY_LEFT|Graphics.TEXT_JUSTIFY_VCENTER);
                 drawFieldValue(dc,fieldY,fieldText(id,now),id,bounds);
             }
         }

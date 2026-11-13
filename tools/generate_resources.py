@@ -344,6 +344,7 @@ for setting in ET.fromstring('<settings>'+''.join(settings)+'</settings>'):
         choices='__FIELD_CHOICES__'
     rows.append([key,title,choices,title_en])
 # Native settings use the same localized resources as phone settings.
+watch_menu_keys=['Language', 'ShowSecondsActive', 'SolarDisplay', 'TemperatureUnit', 'Units', 'ProgressMetric', 'Field1', 'Field2', 'Field3', 'Field4']
 menu_rows=[]
 choice_cases=[]
 seen=set()
@@ -351,7 +352,8 @@ for setting in ET.fromstring('<settings>'+''.join(settings)+'</settings>'):
     key=setting.attrib['propertyKey'].split('.')[-1]
     title_id=setting.attrib['title'].split('.')[-1]
     cfg=setting.find('settingConfig');kind=cfg.attrib['type']
-    menu_rows.append('['+json.dumps(key)+',WatchUi.loadResource(Rez.Strings.'+title_id+'),'+('true' if kind in ['list','boolean'] else 'false')+']')
+    if key in watch_menu_keys:
+        menu_rows.append('['+json.dumps(key)+',WatchUi.loadResource(Rez.Strings.'+title_id+'),'+('true' if kind in ['list','boolean'] else 'false')+']')
     if kind not in ['list','boolean']: continue
     group='Color' if key in defaults else ('Field' if key in ['Field1','Field2','Field3','Field4'] else key)
     if group in seen: continue
